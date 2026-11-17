@@ -95,7 +95,7 @@ const readAnimation = (pkg: Package, ref: ObjectRef, l2: boolean): Read => {
     return sequence;
   });
   if (!reader.atEnd) throw new ObjectError(`${path(pkg, ref)} has ${reader.remaining} unexpected bytes after its sequences`, reader.offset);
-  return { animation: l2 ? { lineage2: true, version, bones, motions, sequences } : { version, bones, motions, sequences }, offsets, base };
+  return { animation: { version, bones, motions, sequences }, offsets, base };
 };
 
 const walkAnimation = (pkg: Package, ref: ObjectRef): Read => {
@@ -128,7 +128,8 @@ export function writeMeshAnimation(pkg: Package, ref: ObjectRef, animation: Mesh
   if (ref <= 0 || className(pkg, ref) !== "MeshAnimation") throw new ObjectError(`${ref > 0 ? path(pkg, ref) : ref} is not a mesh animation in this package`);
   const entry = pkg.exports[ref - 1]!;
   const writer = new Writer();
-  const rough = animation.lineage2 === true && roughMoves(pkg);
+  const alternate = animation.sequences.some((sequence) => sequence.extra !== undefined);
+  const rough = alternate && roughMoves(pkg);
   const base = rough ? entry.offset : 0;
   if (base === undefined) throw new ObjectError(`${path(pkg, ref)} has no file offset; set its offset to 0 for a new export`);
   writer.bytes(entry.data.length ? entry.data.subarray(0, readProperties(pkg, entry.data).end) : writeProperties(pkg, []));
@@ -150,7 +151,7 @@ export function writeMeshAnimation(pkg: Package, ref: ObjectRef, animation: Mesh
     writeArray(writer, motion.boneIndices, (i) => writer.i32(i));
     writeArray(writer, motion.tracks, (track) => writeTrack(writer, track));
     writeTrack(writer, motion.root);
-    if (!animation.lineage2 && motion.version >= flexTracksSince) writer.index(0);
+    if (!alternate && motion.version >= flexTracksSince) writer.index(0);
     if (rough) writer.patchI32(local, base + writer.length);
   });
   if (rough) writer.patchI32(end, base + writer.length);
@@ -164,15 +165,15 @@ export function writeMeshAnimation(pkg: Package, ref: ObjectRef, animation: Mesh
       writer.f32(notify.time);
       writeName(pkg, writer, notify.function);
       writer.index(notify.object);
-      if (animation.lineage2 && pkg.version >= lineage2.notifyText) {
+      if (alternate && pkg.version >= lineage2.notifyText) {
         const text = notify.text ?? "";
         writer.i32(text.length);
         for (let i = 0; i < text.length; i++) writer.u16(text.charCodeAt(i));
       }
     });
     writer.f32(sequence.rate);
-    if (animation.lineage2) {
-      if (!sequence.extra) throw new ObjectError(`Sequence ${sequence.name} is missing its lineage 2 data`);
+    if (alternate) {
+      if (!sequence.extra) throw new ObjectError(`Sequence ${sequence.name} is missing the extra data the other sequences have`);
       writer.bytes(sequence.extra);
     }
   });

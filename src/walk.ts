@@ -1,4 +1,3 @@
-import type { Reader } from "@ritsuwastaken/farchive";
 import { path, type ObjectRef, type Package, type Relocator } from "@ritsuwastaken/upackage";
 import { ObjectError } from "./error.ts";
 
@@ -6,15 +5,6 @@ export interface Offsets {
   lazy: number[];
   base?: number;
 }
-
-export const lazyArray = <T>(reader: Reader, offsets: Offsets, read: (reader: Reader) => T): T[] => {
-  const at = reader.offset;
-  const saved = reader.i32();
-  const items = reader.array(read);
-  if ((offsets.base ??= saved - reader.offset) !== saved - reader.offset) throw new ObjectError(`Lazy array at ${at} does not end where its offset says`, at);
-  offsets.lazy.push(at);
-  return items;
-};
 
 export const relocateWith =
   (walk: (pkg: Package, ref: ObjectRef) => Offsets): Relocator =>

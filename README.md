@@ -49,13 +49,21 @@ await writeFile("Sounds.uax", build(pkg, { relocators }));
 ```ts
 import { readFile, writeFile } from "node:fs/promises";
 import { build, className, parse } from "@ritsuwastaken/upackage";
-import { readMeshAnimation, readSkeletalMesh, readStaticMesh, relocators, writeMeshAnimation } from "@ritsuwastaken/uobject";
+import { readMeshAnimation, readSkeletalMesh, readStaticMesh, relocators, writeMeshAnimation, writeSkeletalMesh, writeStaticMesh } from "@ritsuwastaken/uobject";
 
 const pkg = parse(await readFile("Characters.ukx"));
 for (const [i, entry] of pkg.exports.entries()) {
   const ref = i + 1;
-  if (className(pkg, ref) === "StaticMesh") console.log(readStaticMesh(pkg, ref).vertices.length);
-  if (className(pkg, ref) === "SkeletalMesh") console.log(readSkeletalMesh(pkg, ref).bones.length);
+  if (className(pkg, ref) === "StaticMesh") {
+    const mesh = readStaticMesh(pkg, ref);
+    mesh.vertices.forEach((vertex) => (vertex.position.z *= 2));
+    entry.data = writeStaticMesh(pkg, ref, mesh);
+  }
+  if (className(pkg, ref) === "SkeletalMesh") {
+    const mesh = readSkeletalMesh(pkg, ref);
+    mesh.scale = { x: 2, y: 2, z: 2 };
+    entry.data = writeSkeletalMesh(pkg, ref, mesh);
+  }
   if (className(pkg, ref) === "MeshAnimation") {
     const animation = readMeshAnimation(pkg, ref);
     animation.sequences.forEach((sequence) => (sequence.rate *= 2));

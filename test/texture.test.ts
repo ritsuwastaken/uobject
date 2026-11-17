@@ -86,7 +86,7 @@ test("reads textures and their palettes", () => {
 });
 
 for (const header of [4, 42, 98]) {
-  test(`reads textures with a ${header}-byte lineage 2 header`, () => {
+  test(`reads textures with a ${header}-byte header before the mipmaps`, () => {
     const pkg = sample();
     const ref = addTexture(pkg, "Tex", [byte("Format", 3)], [{ width: 4, height: 4, data: [1, 2, 3, 4, 5, 6, 7, 8] }], header);
     assert.deepEqual([...readTexture(pkg, ref).mips[0]!.data], [1, 2, 3, 4, 5, 6, 7, 8]);

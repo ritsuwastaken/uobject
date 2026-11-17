@@ -72,11 +72,27 @@ export interface AnimSequence {
 }
 
 export interface MeshAnimation {
-  lineage2?: boolean;
   version: number;
   bones: AnimBone[];
   motions: Motion[];
   sequences: AnimSequence[];
+}
+
+
+export interface Box {
+  min: Vector;
+  max: Vector;
+  valid: boolean;
+}
+
+export interface Sphere {
+  center: Vector;
+  radius: number;
+}
+
+export interface UV {
+  u: number;
+  v: number;
 }
 
 export interface MeshBone {
@@ -124,35 +140,111 @@ export interface MeshSection {
   shader: number;
   firstFace: number;
   faces: number;
+  bones?: number[];
+}
+
+export interface SkinPoint {
+  point: Vector;
+  normal: number;
+}
+
+export interface SkinVertex {
+  position: Vector;
+  normal: Vector;
+  u: number;
+  v: number;
+}
+
+export interface SkinnedWedge {
+  point: Vector;
+  normal: Vector;
+  u: number;
+  v: number;
+  bones: [number, number, number, number];
+  weights: [number, number, number, number];
 }
 
 export interface LodModel {
+  skinningStream: number[];
+  smoothVertices: SkinPoint[];
+  smoothStreamWedges: number;
   smoothSections: MeshSection[];
   rigidSections: MeshSection[];
   smoothIndices: number[];
   rigidIndices: number[];
+  rigidVertices: SkinVertex[];
+  revisions: { smooth: number; rigid: number; stream: number };
+  partial: number;
+  streamCallback: number;
   influences: Influence[];
   wedges: MeshWedge[];
   faces: MeshFace[];
   points: Vector[];
   displayFactor: number;
   hysteresis: number;
+  duplicateVertices: number;
   maxInfluences: number;
+  uniqueSubset: number;
+  smoothing: number;
+  skinnedWedges?: { enabled: number; wedges: SkinnedWedge[] };
+}
+
+export interface Impostor {
+  present: number;
+  material: ObjectRef;
+  location: Vector;
+  rotation: Rotator;
+  scale: Vector;
+  color: number;
+  spaceMode: number;
+  drawMode: number;
+  lightMode: number;
+}
+
+export interface Coords {
+  origin: Vector;
+  x: Vector;
+  y: Vector;
+  z: Vector;
 }
 
 export interface SkeletalMesh {
-  lineage2?: boolean;
+  bounds: Box;
+  sphere: Sphere;
   version: number;
+  modelVertices: number;
+  vertices: number[] | Vector[];
   materials: ObjectRef[];
   scale: Vector;
   origin: Vector;
   rotation: Rotator;
+  faceLevels: number[];
+  lodFaces: MeshFace[];
+  collapseWedges: number[];
+  lodWedges: MeshWedge[];
+  meshMaterials: { flags: number; material: number }[];
+  lod: { scaleMax: number; hysteresis: number; strength: number; minVertices: number; morph: number; zDisplace: number };
+  impostor?: Impostor;
+  tesselation?: number;
+  lodExtra?: Uint8Array;
   points: Vector[];
   bones: MeshBone[];
   defaultAnimation: ObjectRef;
-  attachments: { alias: string; bone: string }[];
+  skeletalDepth: number;
+  multiBlends: { points: number[]; weightBase: number }[];
+  weights: { weight: number; bone: number }[];
+  tagAliases: string[];
+  tagNames: string[];
+  tagCoords: Coords[];
   lods: LodModel[];
-  raw: { points: Vector[]; wedges: MeshWedge[]; faces: RawFace[]; influences: Influence[] };
+  defaultRefMesh: ObjectRef;
+  raw: { points: Vector[]; wedges: MeshWedge[]; faces: RawFace[]; influences: Influence[]; collapseWedges: number[]; faceLevels: number[] };
+  authenticationKey?: number;
+  physics?: ObjectRef;
+  collisionSpheres?: { bone: string; offset: Vector; radius: number }[];
+  collisionBoxes?: { bone: string; offset: Vector; radii: Vector }[];
+  collisionModels?: ObjectRef[];
+  trailer?: { first?: number; floats?: number[]; last?: number };
 }
 
 export interface Sound {
@@ -161,14 +253,8 @@ export interface Sound {
   extra: Uint8Array;
 }
 
-export interface Box {
-  min: Vector;
-  max: Vector;
-  valid: boolean;
-}
-
 export interface StaticMeshSection {
-  strip: boolean;
+  strip: number;
   firstIndex: number;
   minVertex: number;
   maxVertex: number;
@@ -181,14 +267,10 @@ export interface StaticMeshVertex {
   normal: Vector;
 }
 
-export interface UV {
-  u: number;
-  v: number;
-}
-
 export interface UVStream {
   coordinates: UV[];
   index: number;
+  revision: number;
 }
 
 export interface StaticMeshTriangle {
@@ -199,17 +281,39 @@ export interface StaticMeshTriangle {
   smoothingGroups: number;
 }
 
+export interface CollisionTriangle {
+  planes?: number[];
+  vertices: [number, number, number];
+  material: number;
+}
+
+export interface CollisionNode {
+  triangle: number;
+  coplanar: number;
+  children: [number, number];
+  box?: Box;
+  bounds?: number[];
+}
+
 export interface StaticMesh {
-  lineage2?: boolean;
   bounds: Box;
+  sphere: Sphere;
   sections: StaticMeshSection[];
+  meshBounds: Box;
   vertices: StaticMeshVertex[];
   colors: number[];
   alphas: number[];
   uvs: UVStream[];
   indices: number[];
   wireframe: number[];
+  revisions: { vertices: number; colors: number; alphas: number; indices: number; wireframe: number };
   collisionModel: ObjectRef;
+  collision: { triangles: CollisionTriangle[]; nodes: CollisionNode[]; scale?: Vector; lazy?: boolean };
+  simpleCollision?: [number, number, number];
+  extra?: Uint8Array;
   triangles: StaticMeshTriangle[];
-  physics: ObjectRef;
+  internalVersion: number;
+  physics?: ObjectRef;
+  authenticationKey?: number;
+  trailer?: { coordinates: UV[]; extra: Uint8Array };
 }
