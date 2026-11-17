@@ -24,4 +24,6 @@ export const lineage2 = { sequenceObject: 1, sequenceExtra: 2, sequenceTiming: 0
 
 export const staticMeshVersions = { streams: 112, collisionFlags: 114, compressedCollision: 126, physics: 100, authentication: 120 } as const;
 
-export const lineage2StaticMeshExtras = [42, 26] as const;
+export const lineage2StaticMeshExtras = [42, 26, 46] as const;
+
+export const lineage2StaticMeshTails = [false, true] as const;

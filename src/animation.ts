@@ -1,8 +1,9 @@
 import { ArchiveError, Reader, Writer } from "@ritsuwastaken/farchive";
-import { className, path, readProperties, writeProperties, type ObjectRef, type Package, type Relocator } from "@ritsuwastaken/upackage";
+import { className, path, readProperties, writeProperties, type ObjectRef, type Package } from "@ritsuwastaken/upackage";
 import { readName, readQuat, readVector, writeArray, writeName, writeQuat, writeVector } from "./archive.ts";
 import { flexTracksSince, lineage2 } from "./constants.ts";
 import { ObjectError } from "./error.ts";
+import { relocateWith } from "./walk.ts";
 import type { AnimNotify, AnimSequence, AnimTrack, MeshAnimation, Motion } from "./types.ts";
 
 const readTrack = (reader: Reader): AnimTrack => ({ flags: reader.u32(), rotations: reader.array(readQuat), positions: reader.array(readVector), times: reader.array((r) => r.f32()) });
@@ -111,21 +112,10 @@ export function readMeshAnimation(pkg: Package, ref: ObjectRef): MeshAnimation {
   return walkAnimation(pkg, ref).animation;
 }
 
-export const relocateMeshAnimation: Relocator = (pkg, ref, data, from, to) => {
-  const original = pkg.exports[ref - 1]!.data;
-  pkg.exports[ref - 1]!.data = data;
-  try {
-    const { offsets, base } = walkAnimation(pkg, ref);
-    if (base === undefined) return data;
-    if (base !== from) throw new ObjectError(`${path(pkg, ref)} stores offsets for position ${base}, not ${from}`);
-    const out = new Uint8Array(data);
-    const view = new DataView(out.buffer, out.byteOffset, out.byteLength);
-    for (const at of offsets) view.setInt32(at, view.getInt32(at, true) + to - from, true);
-    return out;
-  } finally {
-    pkg.exports[ref - 1]!.data = original;
-  }
-};
+export const relocateMeshAnimation = relocateWith((pkg, ref) => {
+  const { offsets, base } = walkAnimation(pkg, ref);
+  return { lazy: offsets, base };
+});
 
 const writeTrack = (writer: Writer, track: AnimTrack) => {
   writer.u32(track.flags);
@@ -134,12 +124,14 @@ const writeTrack = (writer: Writer, track: AnimTrack) => {
   writeArray(writer, track.times, (t) => writer.f32(t));
 };
 
-export function writeMeshAnimation(pkg: Package, animation: MeshAnimation, ref?: ObjectRef): Uint8Array {
+export function writeMeshAnimation(pkg: Package, ref: ObjectRef, animation: MeshAnimation): Uint8Array {
+  if (ref <= 0 || className(pkg, ref) !== "MeshAnimation") throw new ObjectError(`${ref > 0 ? path(pkg, ref) : ref} is not a mesh animation in this package`);
+  const entry = pkg.exports[ref - 1]!;
   const writer = new Writer();
   const rough = animation.lineage2 === true && roughMoves(pkg);
-  const base = rough ? (ref === undefined ? undefined : pkg.exports[ref - 1]?.offset) : 0;
-  if (base === undefined) throw new ObjectError("This animation stores file offsets; pass the reference of an export from a parsed package");
-  writer.bytes(writeProperties(pkg, []));
+  const base = rough ? entry.offset : 0;
+  if (base === undefined) throw new ObjectError(`${path(pkg, ref)} has no file offset; set its offset to 0 for a new export`);
+  writer.bytes(entry.data.length ? entry.data.subarray(0, readProperties(pkg, entry.data).end) : writeProperties(pkg, []));
   writer.i32(animation.version);
   writeArray(writer, animation.bones, (bone) => {
     writeName(pkg, writer, bone.name);

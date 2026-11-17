@@ -1,7 +1,7 @@
 import { ArchiveError, Reader } from "@ritsuwastaken/farchive";
 import { className, path, readProperties, type ObjectRef, type Package } from "@ritsuwastaken/upackage";
 import { readVector } from "./archive.ts";
-import { lineage2StaticMeshExtras, staticMeshVersions } from "./constants.ts";
+import { lineage2StaticMeshExtras, lineage2StaticMeshTails, staticMeshVersions } from "./constants.ts";
 import { ObjectError } from "./error.ts";
 import type { Box, StaticMesh, StaticMeshTriangle, UV } from "./types.ts";
 import { lazyArray, relocateWith, type Offsets } from "./walk.ts";
@@ -10,10 +10,11 @@ interface Layout {
   lineage2: boolean;
   lazyCollision: boolean;
   extra: number;
+  tail: boolean;
 }
 
-const standard: Layout = { lineage2: false, lazyCollision: false, extra: 0 };
-const lineage2Layouts: Layout[] = [true, false].flatMap((lazyCollision) => lineage2StaticMeshExtras.map((extra) => ({ lineage2: true, lazyCollision, extra })));
+const standard: Layout = { lineage2: false, lazyCollision: false, extra: 0, tail: false };
+const lineage2Layouts: Layout[] = lineage2StaticMeshTails.flatMap((tail) => [true, false].flatMap((lazyCollision) => lineage2StaticMeshExtras.map((extra) => ({ lineage2: true, lazyCollision, extra, tail }))));
 
 const readBox = (r: Reader): Box => ({ min: readVector(r), max: readVector(r), valid: r.u8() !== 0 });
 const readUV = (r: Reader): UV => ({ u: r.f32(), v: r.f32() });
@@ -58,7 +59,7 @@ const walkLayout = (pkg: Package, ref: ObjectRef, layout: Layout): { mesh: Stati
   const indices = stream(r, (i) => i.u16());
   const wireframe = stream(r, (i) => i.u16());
   const collisionModel = r.index();
-  if (pkg.version >= staticMeshVersions.compressedCollision) {
+  if (!layout.lineage2 && pkg.version >= staticMeshVersions.compressedCollision) {
     r.array((t) => {
       t.skip(6);
       t.index();
@@ -78,6 +79,10 @@ const walkLayout = (pkg: Package, ref: ObjectRef, layout: Layout): { mesh: Stati
   r.i32();
   const physics = pkg.version >= staticMeshVersions.physics ? r.index() : 0;
   if (pkg.version >= staticMeshVersions.authentication) r.u32();
+  if (layout.tail) {
+    r.array((t) => t.skip(8));
+    r.skip(16);
+  }
   if (!r.atEnd) throw new ObjectError(`${path(pkg, ref)} has ${r.remaining} unexpected bytes at ${r.offset}`, r.offset);
   return { mesh: { ...(layout.lineage2 ? { lineage2: true } : {}), bounds, sections, vertices, colors, alphas, uvs, indices, wireframe, collisionModel, triangles, physics }, offsets };
 };
@@ -86,7 +91,7 @@ const walkStaticMesh = (pkg: Package, ref: ObjectRef) => {
   if (ref <= 0 || className(pkg, ref) !== "StaticMesh") throw new ObjectError(`${ref > 0 ? path(pkg, ref) : ref} is not a static mesh in this package`);
   if (pkg.version < staticMeshVersions.streams) throw new ObjectError(`${path(pkg, ref)} uses the static mesh layout from before version ${staticMeshVersions.streams}, which isn't supported`);
   let failure: unknown;
-  for (const layout of pkg.licensee > 0 && pkg.version < staticMeshVersions.compressedCollision ? [standard, ...lineage2Layouts] : [standard]) {
+  for (const layout of pkg.licensee > 0 ? [standard, ...lineage2Layouts] : [standard]) {
     try {
       return walkLayout(pkg, ref, layout);
     } catch (error) {

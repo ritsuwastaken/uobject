@@ -1,26 +1,18 @@
 import { ArchiveError, Reader } from "@ritsuwastaken/farchive";
-import { className, path, readProperties, type ObjectRef, type Package, type Relocator, type Vector } from "@ritsuwastaken/upackage";
+import { className, path, readProperties, type ObjectRef, type Package, type Vector } from "@ritsuwastaken/upackage";
 import { readName, readQuat, readVector } from "./archive.ts";
 import { lineage2, lodMeshVersions, meshVersions } from "./constants.ts";
 import { ObjectError } from "./error.ts";
+import { lazyArray, relocateWith, type Offsets } from "./walk.ts";
 import type { Influence, LodModel, MeshFace, MeshSection, MeshWedge, RawFace, SkeletalMesh } from "./types.ts";
 
-interface Walk {
+interface Walk extends Offsets {
   reader: Reader;
   l2: boolean;
   licensee: number;
-  lazy: number[];
-  base?: number;
 }
 
-const lazyArray = <T>(walk: Walk, read: (reader: Reader) => T): T[] => {
-  const at = walk.reader.offset;
-  const saved = walk.reader.i32();
-  const items = walk.reader.array(read);
-  if ((walk.base ??= saved - walk.reader.offset) !== saved - walk.reader.offset) throw new ObjectError(`Lazy array at ${at} does not end where its offset says`, at);
-  walk.lazy.push(at);
-  return items;
-};
+const lazy = <T>(walk: Walk, read: (reader: Reader) => T) => lazyArray(walk.reader, walk, read);
 
 const words = (reader: Reader) => reader.array((r) => r.u16());
 const skip = (reader: Reader, size: number) => reader.array((r) => r.skip(size));
@@ -52,10 +44,10 @@ const lodModel = (walk: Walk): LodModel => {
   r.i32();
   r.i32();
   skip(r, 32);
-  const influences = lazyArray(walk, influence);
-  const wedges = lazyArray(walk, wedge);
-  const faces = lazyArray(walk, face);
-  const points = lazyArray(walk, readVector);
+  const influences = lazy(walk, influence);
+  const wedges = lazy(walk, wedge);
+  const faces = lazy(walk, face);
+  const points = lazy(walk, readVector);
   const displayFactor = r.f32();
   const hysteresis = r.f32();
   r.i32();
@@ -118,12 +110,12 @@ const walkLayout = (pkg: Package, ref: ObjectRef, l2: boolean): { mesh: Skeletal
   if (version >= lodMeshVersions.legacy) {
     lods.push(...r.array(() => lodModel(walk)));
     r.index();
-    raw.points = lazyArray(walk, readVector);
-    raw.wedges = lazyArray(walk, wedge);
-    raw.faces = lazyArray(walk, rawFace);
-    raw.influences = lazyArray(walk, influence);
-    lazyArray(walk, (w) => w.u16());
-    lazyArray(walk, (w) => w.u16());
+    raw.points = lazy(walk, readVector);
+    raw.wedges = lazy(walk, wedge);
+    raw.faces = lazy(walk, rawFace);
+    raw.influences = lazy(walk, influence);
+    lazy(walk, (w) => w.u16());
+    lazy(walk, (w) => w.u16());
   }
   if (l2) {
     if (pkg.version >= 118 && pkg.licensee >= lineage2.meshExtra) r.i32();
@@ -162,17 +154,4 @@ export function readSkeletalMesh(pkg: Package, ref: ObjectRef): SkeletalMesh {
   return walkMesh(pkg, ref).mesh;
 }
 
-export const relocateSkeletalMesh: Relocator = (pkg, ref, data, from, to) => {
-  const original = pkg.exports[ref - 1]!.data;
-  pkg.exports[ref - 1]!.data = data;
-  try {
-    const { walk } = walkMesh(pkg, ref);
-    if (walk.base !== undefined && walk.base !== from) throw new ObjectError(`${path(pkg, ref)} stores offsets for position ${walk.base}, not ${from}`);
-    const out = new Uint8Array(data);
-    const view = new DataView(out.buffer, out.byteOffset, out.byteLength);
-    for (const at of walk.lazy) view.setInt32(at, view.getInt32(at, true) + to - from, true);
-    return out;
-  } finally {
-    pkg.exports[ref - 1]!.data = original;
-  }
-};
+export const relocateSkeletalMesh = relocateWith((pkg, ref) => walkMesh(pkg, ref).walk);
