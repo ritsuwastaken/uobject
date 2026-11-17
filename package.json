@@ -1,6 +1,6 @@
 {
     "name": "@ritsuwastaken/uobject",
-    "version": "1.0.1",
+    "version": "1.0.2",
     "description": "read and write native object data in unreal engine 1 and 2 packages: textures, palettes, sounds, static meshes, skeletal meshes, animations",
     "type": "module",
     "sideEffects": false,
