@@ -52,7 +52,7 @@ const compressedTriangle = struct<CollisionTriangle>([
   ["material", index],
 ]);
 
-const fixedBounds: Codec<number[]> = { read: (r) => Array.from({ length: 6 }, () => r.u16()), write: (w, v) => v.forEach((value) => w.u16(value)) };
+const fixedBounds: Codec<number[]> = { read: (r) => Array.from({ length: 6 }, () => r.i16()), write: (w, v) => v.forEach((value) => w.i16(value)) };
 
 const compressedNode = struct<CollisionNode>([
   ["triangle", u16],

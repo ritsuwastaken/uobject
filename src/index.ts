@@ -1,4 +1,5 @@
 export { readMeshAnimation, relocateMeshAnimation, writeMeshAnimation } from "./animation.ts";
+export { buildCollision, type CollisionOptions } from "./collision.ts";
 export { blockFormats, pixelFormats, textureFormats } from "./constants.ts";
 export { decodeMip } from "./decode.ts";
 export { encodeMip, mipmaps } from "./encode.ts";

@@ -49,7 +49,7 @@ await writeFile("Sounds.uax", build(pkg, { relocators }));
 ```ts
 import { readFile, writeFile } from "node:fs/promises";
 import { build, className, parse } from "@ritsuwastaken/upackage";
-import { readMeshAnimation, readSkeletalMesh, readStaticMesh, relocators, writeMeshAnimation, writeSkeletalMesh, writeStaticMesh } from "@ritsuwastaken/uobject";
+import { buildCollision, readMeshAnimation, readSkeletalMesh, readStaticMesh, relocators, writeMeshAnimation, writeSkeletalMesh, writeStaticMesh } from "@ritsuwastaken/uobject";
 
 const pkg = parse(await readFile("Characters.ukx"));
 for (const [i, entry] of pkg.exports.entries()) {
@@ -57,6 +57,7 @@ for (const [i, entry] of pkg.exports.entries()) {
   if (className(pkg, ref) === "StaticMesh") {
     const mesh = readStaticMesh(pkg, ref);
     mesh.vertices.forEach((vertex) => (vertex.position.z *= 2));
+    mesh.collision = buildCollision(pkg, mesh);
     entry.data = writeStaticMesh(pkg, ref, mesh);
   }
   if (className(pkg, ref) === "SkeletalMesh") {
@@ -74,3 +75,11 @@ await writeFile("Characters.ukx", build(pkg, { relocators }));
 ```
 
 Textures, sounds and meshes store absolute file offsets, so always build with `relocators`. For an export you add yourself, set its `offset` to 0 before writing its data.
+
+### Static mesh collision
+
+```ts
+mesh.collision = buildCollision(pkg, mesh, { materials: [true, false] });
+
+mesh.collision = buildCollision(pkg, mesh, { triangles: mesh.collision.triangles });
+```
